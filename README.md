@@ -11,3 +11,5 @@ $ python3 picsync.py path/to/dir/of/pictures path/to/song.mp3
 - Or a slow output with a miniscule file size
 
 ** this program requires a folder of images and a single mp3 file
+
+** all images must be the same dimensions
