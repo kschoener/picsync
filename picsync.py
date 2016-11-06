@@ -65,7 +65,7 @@ def main():
 
 
     # put all of the little picture videos together into one video
-    concatCommand = [FFMPEG_BIN, "-y", "-f", "concat", "-i", myPath+"/"+outPath+"input.txt",
+    concatCommand = [FFMPEG_BIN, "-y", "-auto_convert", "1", "-f", "concat", "-i", myPath+"/"+outPath+"input.txt",
         "-i", "/"+os.path.relpath(songpath, "/"), "-vcodec", "copy", "-acodec", "copy", myPath+"/finalVideoNoAudio.mp4"]
     print("\n\n\nCommand: "+str(concatCommand))
     (subprocess.Popen(concatCommand, cwd=myPath)).wait()
@@ -82,13 +82,14 @@ def main():
 
     #ffmpeg -i input_file.mp4 -acodec copy -vcodec copy -f mov output_file.mov
     # convert the mp4 to mov for viewing on mac
-    toMovCommand = [FFMPEG_BIN, "-y", "-i", os.path.join(os.getcwd(),"video.mp4"), "-acodec", "copy", "-vcodec", "copy", "-f", "mov", os.path.join(os.getcwd(),"video.mov")]
+    toMovCommand = [FFMPEG_BIN, "-y", "-i", os.path.join(os.getcwd(),"video.mp4"),
+        "-acodec", "copy", "-vcodec", "copy", "-f", "mov", os.path.join(os.getcwd(),"video.mov")]
     print("\n\n\nCommand: "+str(toMovCommand))
     (subprocess.Popen(toMovCommand, cwd=myPath)).wait()
 
     # remove all temp files, only keep video.mov
     os.remove(myPath+"/finalVideoNoAudio.mp4")
-    os.remove(os.path.join(os.getcwd(),"video.mp4"))
+    # os.remove(os.path.join(os.getcwd(),"video.mp4"))
     for item in os.listdir(myPath+"/"+outPath):
         os.remove(myPath+"/"+outPath+item)
 #enddef main
@@ -190,8 +191,16 @@ def setUpPictureVideos(myPath, outPath, picInsertionsSeconds, maxDisplayTime):
         tempOutPath = myPath + "/" + outPath + name + ".mp4"
         #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
         #ffmpeg -loop_input -i test.jpg -t 10 test.mp4
+
+        # works but fairly slow -- very small file size though -- exact accuracy!!!! -- 29.2MB for 75 seconds
         command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path,
-            "-t", str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]
+            "-t", str(duration), "-c:v", "libx264", "-preset", "medium",
+            "-vf", "scale=-2:1440,format=yuv420p", "-c:a", "libfdk_aac", tempOutPath]
+
+        # works - stupid fast - normal size (HUGE) -- probably takes too much space -- 8.2GB for 75 seconds
+        # command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path, "-t",
+        #     str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]
+
         try:
             print("\n\n\ncommand called: "+str(command))
             (subprocess.Popen(command, cwd=myPath)).wait()
