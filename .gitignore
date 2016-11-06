@@ -1,3 +1,7 @@
+*.mp4
+*.mov
+*.mp3
+
 tempoutput
 tempoutput/*
 ./tempoutput
