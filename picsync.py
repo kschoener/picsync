@@ -4,12 +4,15 @@ from pydub import AudioSegment
 import random
 import subprocess
 
+#echo nest -- through spotify
+
 songpath = None
 picpaths = None
 
+fastest = False
 '''
+*TODO:
 rewrite it to find the locations where it is between the threshold
-
 then use greedy stay ahead algo to fill out the song
 '''
 
@@ -34,7 +37,6 @@ FFMPEG_BIN = "/usr/local/bin/ffmpeg"
 
 
 #start with one audio file as input, and a folder of pictures
-# min framerate = 2 (image displayed for 1/2 of a second)
 def main():
     initialize()
 
@@ -47,7 +49,7 @@ def main():
     minDisplayTime = 1000 #milliseconds
     # minDisplayTime = (songTimeSeconds*1000)/(numberOfPictures*1.5)
     #prefer to show all pictures and not the whole song than the whole song and not all pics
-    maxDisplayTime = 6000 #4 seconds hard maximum
+    maxDisplayTime = 5000 #5 seconds hard maximum
 
     loudest = max(samples)
     print("The loudest is: "+str(loudest))
@@ -99,6 +101,7 @@ def main():
 def initialize():
     global songpath
     global picpaths
+    global fastest
     picpaths = []
     #python3 picsync.py path/to/pics path/to/song.mp3
     for item in os.listdir(sys.argv[1]):
@@ -109,8 +112,9 @@ def initialize():
     print("pic paths: "+str(picpaths))
     random.shuffle(picpaths)
     print("after shuffle: "+str(picpaths))
-
     songpath = sys.argv[2]
+
+    fastest = "fastest" in sys.argv[1:]
 #enddef initialize
 
 
@@ -145,7 +149,7 @@ def changeLogic(loudest, minDisplayTime, maxDisplayTime,
     while(len(picInsertions) < numberOfPictures and picInsertions[-1] <= songTimeSeconds*1000):# and minDisplayTime > 100):
         picInsertions = []
         picInsertions.append(0)
-        minVol /= 1.75
+        minVol /= 1.1
         i = 0
         for val in samples:
             currentTimeInMilli = float(i / pointsPerMillisecond)
@@ -191,15 +195,16 @@ def setUpPictureVideos(myPath, outPath, picInsertionsSeconds, maxDisplayTime):
         tempOutPath = myPath + "/" + outPath + name + ".mp4"
         #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
         #ffmpeg -loop_input -i test.jpg -t 10 test.mp4
-
-        # works but fairly slow -- very small file size though -- exact accuracy!!!! -- 29.2MB for 75 seconds
-        command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path,
-            "-t", str(duration), "-c:v", "libx264", "-preset", "medium",
-            "-vf", "scale=-2:1440,format=yuv420p", "-c:a", "libfdk_aac", tempOutPath]
-
-        # works - stupid fast - normal size (HUGE) -- probably takes too much space -- 8.2GB for 75 seconds
-        # command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path, "-t",
-        #     str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]
+        command = None
+        if(not fastest):
+            # fairly slow -- very small file size though -- 29.2MB for 75s (with 5mb photos)
+            command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path,
+                "-t", str(duration), "-c:v", "libx264", "-preset", "medium",
+                "-vf", "scale=-2:1440,format=yuv420p", "-c:a", "libfdk_aac", tempOutPath]
+        else:
+            # stupid fast - normal size (HUGE) --  takes a lot of space -- 8.2GB for 75s (with 5mb photos)
+            command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path, "-t",
+                str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]`
 
         try:
             print("\n\n\ncommand called: "+str(command))
