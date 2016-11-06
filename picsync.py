@@ -50,7 +50,7 @@ def main():
         #endif
     #endfor
     print("pic paths: "+str(picpaths))
-    # random.shuffle(picpaths)
+    random.shuffle(picpaths)
     print("after shuffle: "+str(picpaths))
 
     #if there are two channels, the even values are left channel and odd are the right in the array of samples
@@ -79,13 +79,15 @@ def main():
 
     numberOfPictures = len(picpaths)
     # minDisplayTime = float(0.5) #30 seconds, 1/2 minute
-    # minDisplayTime = 400 #milliseconds
-    minDisplayTime = (songTimeSeconds*1000)/(numberOfPictures*1.5)
+    minDisplayTime = 1000 #milliseconds
+    # minDisplayTime = (songTimeSeconds*1000)/(numberOfPictures*1.5)
     #prefer to show all pictures and not the whole song than the whole song and not all pics
-    maxDisplayTime = 5000 #5 seconds hard maximum
-    if(minDisplayTime > 1000):
-        minDisplayTime = 1000
-    #endif
+    maxDisplayTime = 6000 #4 seconds hard maximum
+    # if(minDisplayTime > 1000):
+    #     minDisplayTime = 1000
+    # #endif
+    # if(minDisplayTime < 100):
+    #     minDisplayTime = 250
 
     loudest = max(samples)
     print("The loudest is: "+str(loudest))
@@ -93,22 +95,23 @@ def main():
 
     print("the number of milliseconds is: "+str(pointsPerMillisecond*sizeOfSamp))
 
-    picInsertions = []
+    picInsertions = [0]
     minVol = loudest
-    while(len(picInsertions) < numberOfPictures):
-        picInsertions = [0]
-        minVol /= 1.25
+    while(len(picInsertions) < numberOfPictures and picInsertions[-1] <= songTimeSeconds*1000):# and minDisplayTime > 100):
+        picInsertions = []
+        picInsertions.append(0)
+        minVol /= 1.75
         i = 0
         for val in samples:
             currentTimeInMilli = float(i / pointsPerMillisecond)
-            if((currentTimeInMilli-picInsertions[-1]) >= minDisplayTime and val >= minVol):
+            if((val >= minVol and (currentTimeInMilli-picInsertions[-1]) >= minDisplayTime) or currentTimeInMilli-picInsertions[-1] >= maxDisplayTime):
                 picInsertions.append(currentTimeInMilli)
             #endif
-            if(len(picInsertions) >= numberOfPictures or currentTimeInMilli-picInsertions[-1] >= maxDisplayTime):
+            if(len(picInsertions) >= numberOfPictures):
                 break
             i += 1
         #endfor
-        minDisplayTime /= 2
+        # minDisplayTime /= 2
         print("Insert times at end of loop = "+str(picInsertions))
     #endwhile
 
@@ -120,6 +123,11 @@ def main():
     myPath = os.path.dirname(os.path.realpath(__file__))
 
     outPath = "tempoutput/"
+    try:
+        os.mkdir(myPath+"/"+outPath)
+    except:
+        print(outPath+" already created!")
+
     ppIndex = 0
     writeString = ''
     for j in range(len(picInsertionsSeconds)):
@@ -136,61 +144,60 @@ def main():
         tempOutPath = myPath + "/" + outPath + name + ".mp4"
         # tempOutPath = outPath + name + ".mp4"
         #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
-        command = [FFMPEG_BIN, "-framerate", "1/"+str(duration)[:4], "-i", myPath+"/"+path,
+        command = [FFMPEG_BIN, "-framerate", "1/"+str(duration), "-i", myPath+"/"+path,
             "-c:v", "libx264", "-acodec", "copy", "-vcodec", "copy", tempOutPath]
         try:
             print("\n\n\ncommand called: "+str(command))
-            # subprocess.call(command)
-            pipe = subprocess.Popen(command, cwd=myPath)
-            pipe.wait()
-            # handle.write("file '"+name+".mp4"+"'\n")
-            # writeString += ("file '"+myPath+"/"+name+".mp4"+"'\n")
+            (subprocess.Popen(command, cwd=myPath)).wait()
             writeString += ("file '"+name+".mp4"+"'\n")
         except:
             print("Couldn't complete command")
         ppIndex += 1
     #endfor
+
     path = picpaths[-1]
     name = "filler"
     tempOutPath = myPath + "/" + outPath + name + ".mp4"
-    # tempOutPath = outPath + name + ".mp4"
+
     #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
-    command = [FFMPEG_BIN, "-framerate", "1/"+str(.001), "-i", myPath+"/"+path,
+    command = [FFMPEG_BIN, "-framerate", "30", "-i", myPath+"/"+path,
         "-c:v", "libx264", "-acodec", "copy", "-vcodec", "copy", tempOutPath]
     try:
         print("\n\n\ncommand called: "+str(command))
-        # subprocess.call(command)
-        pipe = subprocess.Popen(command, cwd=myPath)
-        pipe.wait()
-        # handle.write("file '"+name+".mp4"+"'\n")
-        # writeString += ("file '"+myPath+"/"+name+".mp4"+"'\n")
+        (subprocess.Popen(command, cwd=myPath)).wait()
         writeString += ("file '"+name+".mp4"+"'\n")
     except:
         print("Couldn't complete command")
-    print("\n\n\n WriteString = "+writeString)
 
+    print("\n\n\n WriteString = "+writeString)
     with open(outPath+"input.txt", "w") as handle:
         handle.write(writeString)
     #end with
     handle.close()
+
+
     #ffmpeg -f concat -i input.txt -codec copy finalVideoNoAudio.mp4
-    concatCommand = [FFMPEG_BIN, "-f", "concat", "-i", myPath+"/"+outPath+"input.txt", "-codec", "copy", myPath+"/finalVideoNoAudio.mp4"]
-    # subprocess.call(concatCommand)
+    concatCommand = [FFMPEG_BIN, "-f", "concat", "-i", myPath+"/"+outPath+"input.txt", "-vcodec", "libx264", myPath+"/finalVideoNoAudio.mp4"]
+    print("\n\n\nCommand: "+str(concatCommand))
     (subprocess.Popen(concatCommand, cwd=myPath)).wait()
 
     #ffmpeg -i finalVideoNoAudio.mp4 -i song.mp3 -vcodec copy -acodec copy -shortest finalWithAudio.mp4
     mergeCommand = [FFMPEG_BIN, "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath, "-vcodec", "copy",
         "-acodec", "copy", "-shortest", myPath+"/video.mp4"]
-    # subprocess.call(mergeCommand)
+    print("\n\n\nCommand: "+str(mergeCommand))
     (subprocess.Popen(mergeCommand, cwd=myPath)).wait()
 
     #ffmpeg -i input_file.mp4 -acodec copy -vcodec copy -f mov output_file.mov
     toMovCommand = [FFMPEG_BIN, "-i", myPath+"/video.mp4", "-acodec", "copy", "-vcodec", "copy", "-f", "mov", myPath+"/video.mov"]
-    # subprocess.call(toMovCommand)
+    print("\n\n\nCommand: "+str(toMovCommand))
     (subprocess.Popen(toMovCommand, cwd=myPath)).wait()
 
-    # subprocess.call("open", "video.mov")
-    # subprocess.Popen(["open", myPath+"/video.mov"], cwd=myPath)
+    # (subprocess.Popen(["rm", myPath+"/*.mp4"], cwd=myPath)).wait()
+    # (subprocess.Popen(["rm", myPath+"/"+outPath+"*.mp4"], cwd=myPath)).wait()
+    os.remove(myPath+"/finalVideoNoAudio.mp4")
+    os.remove(myPath+"/video.mp4")
+    for item in os.listdir(myPath+"/"+outPath):
+        os.remove(myPath+"/"+outPath+item)
 #enddef main
 
 
