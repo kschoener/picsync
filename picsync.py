@@ -13,7 +13,6 @@ fastest = False
 '''
 *TODO:
 rewrite it to find the locations where it is between the threshold
-then use greedy stay ahead algo to fill out the song
 '''
 
 '''
@@ -49,7 +48,7 @@ def main():
     minDisplayTime = 1000 #milliseconds
     # minDisplayTime = (songTimeSeconds*1000)/(numberOfPictures*1.5)
     #prefer to show all pictures and not the whole song than the whole song and not all pics
-    maxDisplayTime = 5000 #5 seconds hard maximum
+    maxDisplayTime = 4000 #5 seconds hard maximum
 
     loudest = max(samples)
     print("The loudest is: "+str(loudest))
@@ -105,12 +104,15 @@ def initialize():
     picpaths = []
     #python3 picsync.py path/to/pics path/to/song.mp3
     for item in os.listdir(sys.argv[1]):
-        if(os.path.isfile(os.path.join(sys.argv[1],item)) and str(item).endswith('.JPG')):
+        if(os.path.isfile(os.path.join(sys.argv[1],item)) and
+            (str(item).endswith('.JPG') or str(item).endswith('.jpg') or str(item).endswith('.jpeg')
+            or str(item).endswith('.png') or str(item).endswith('.PNG'))):
             picpaths.append(str(os.path.join(sys.argv[1],item)))
         #endif
     #endfor
     print("pic paths: "+str(picpaths))
     random.shuffle(picpaths)
+    print("number of pictures = "+str(len(picpaths)))
     print("after shuffle: "+str(picpaths))
     songpath = sys.argv[2]
 
@@ -146,7 +148,7 @@ def changeLogic(loudest, minDisplayTime, maxDisplayTime,
     numberOfPictures, songTimeSeconds, samples, pointsPerMillisecond):
     picInsertions = [0]
     minVol = loudest
-    while(len(picInsertions) < numberOfPictures and picInsertions[-1] <= songTimeSeconds*1000):# and minDisplayTime > 100):
+    while(len(picInsertions) < numberOfPictures and picInsertions[-1] <= songTimeSeconds*1000):
         picInsertions = []
         picInsertions.append(0)
         minVol /= 1.1
@@ -210,9 +212,6 @@ def setUpPictureVideos(myPath, outPath, picInsertionsSeconds, maxDisplayTime):
             print("\n\n\ncommand called: "+str(command))
             (subprocess.Popen(command, cwd=myPath)).wait()
             writeString += ("file '"+name+".mp4"+"'\n")
-
-            # command = [FFMPEG_BIN, "-y", "-i", tempOutPath, "-t", str(duration), "-codec", "copy", tempOutPath]
-            # (subprocess.Popen(command, cwd=myPath)).wait()
         except:
             print("Couldn't complete command")
         ppIndex += 1
