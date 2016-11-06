@@ -204,7 +204,7 @@ def setUpPictureVideos(myPath, outPath, picInsertionsSeconds, maxDisplayTime):
         else:
             # stupid fast - normal size (HUGE) --  takes a lot of space -- 8.2GB for 75s (with 5mb photos)
             command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path, "-t",
-                str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]`
+                str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]
 
         try:
             print("\n\n\ncommand called: "+str(command))
