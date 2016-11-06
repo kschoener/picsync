@@ -144,12 +144,16 @@ def main():
         tempOutPath = myPath + "/" + outPath + name + ".mp4"
         # tempOutPath = outPath + name + ".mp4"
         #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
-        command = [FFMPEG_BIN, "-framerate", "1/"+str(duration), "-i", myPath+"/"+path,
-            "-c:v", "libx264", "-acodec", "copy", "-vcodec", "copy", tempOutPath]
+        #ffmpeg -loop_input -i test.jpg -t 10 test.mp4
+        command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", myPath+"/"+path,
+            "-t", str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]
         try:
             print("\n\n\ncommand called: "+str(command))
             (subprocess.Popen(command, cwd=myPath)).wait()
             writeString += ("file '"+name+".mp4"+"'\n")
+
+            # command = [FFMPEG_BIN, "-y", "-i", tempOutPath, "-t", str(duration), "-codec", "copy", tempOutPath]
+            # (subprocess.Popen(command, cwd=myPath)).wait()
         except:
             print("Couldn't complete command")
         ppIndex += 1
@@ -160,8 +164,8 @@ def main():
     tempOutPath = myPath + "/" + outPath + name + ".mp4"
 
     #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
-    command = [FFMPEG_BIN, "-framerate", "30", "-i", myPath+"/"+path,
-        "-c:v", "libx264", "-acodec", "copy", "-vcodec", "copy", tempOutPath]
+    command = [FFMPEG_BIN, "-y", "-framerate", "30", "-i", myPath+"/"+path,
+        "-c:v", "libx264", "-codec", "copy", tempOutPath]
     try:
         print("\n\n\ncommand called: "+str(command))
         (subprocess.Popen(command, cwd=myPath)).wait()
@@ -177,23 +181,29 @@ def main():
 
 
     #ffmpeg -f concat -i input.txt -codec copy finalVideoNoAudio.mp4
-    concatCommand = [FFMPEG_BIN, "-f", "concat", "-i", myPath+"/"+outPath+"input.txt", "-vcodec", "libx264", myPath+"/finalVideoNoAudio.mp4"]
+    # concatCommand = [FFMPEG_BIN, "-f", "concat", "-i", myPath+"/"+outPath+"input.txt", "-codec", "copy", myPath+"/finalVideoNoAudio.mp4"]
+    # print("\n\n\nCommand: "+str(concatCommand))
+    # (subprocess.Popen(concatCommand, cwd=myPath)).wait()
+
+    concatCommand = [FFMPEG_BIN, "-y", "-f", "concat", "-i", myPath+"/"+outPath+"input.txt",
+        "-i", myPath+"/"+songpath, "-vcodec", "copy", "-acodec", "copy", myPath+"/finalVideoNoAudio.mp4"]
     print("\n\n\nCommand: "+str(concatCommand))
     (subprocess.Popen(concatCommand, cwd=myPath)).wait()
 
-    #ffmpeg -i finalVideoNoAudio.mp4 -i song.mp3 -vcodec copy -acodec copy -shortest finalWithAudio.mp4
-    mergeCommand = [FFMPEG_BIN, "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath, "-vcodec", "copy",
-        "-acodec", "copy", "-shortest", myPath+"/video.mp4"]
+    # ffmpeg -i finalVideoNoAudio.mp4 -i song.mp3 -vcodec copy -acodec copy -shortest finalWithAudio.mp4
+    # mergeCommand = [FFMPEG_BIN, "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath, "-vcodec", "copy",
+    #     "-acodec", "copy", "-shortest", myPath+"/video.mp4"]
+    mergeCommand = [FFMPEG_BIN, "-y", "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath,
+        "-vcodec", "copy", "-c:a", "aac", "-strict", "experimental",
+        "-map", "0:v:0", "-map", "1:a:0", "-shortest", myPath+"/video.mp4"]
     print("\n\n\nCommand: "+str(mergeCommand))
     (subprocess.Popen(mergeCommand, cwd=myPath)).wait()
 
     #ffmpeg -i input_file.mp4 -acodec copy -vcodec copy -f mov output_file.mov
-    toMovCommand = [FFMPEG_BIN, "-i", myPath+"/video.mp4", "-acodec", "copy", "-vcodec", "copy", "-f", "mov", myPath+"/video.mov"]
+    toMovCommand = [FFMPEG_BIN, "-y", "-i", myPath+"/video.mp4", "-acodec", "copy", "-vcodec", "copy", "-f", "mov", myPath+"/video.mov"]
     print("\n\n\nCommand: "+str(toMovCommand))
     (subprocess.Popen(toMovCommand, cwd=myPath)).wait()
 
-    # (subprocess.Popen(["rm", myPath+"/*.mp4"], cwd=myPath)).wait()
-    # (subprocess.Popen(["rm", myPath+"/"+outPath+"*.mp4"], cwd=myPath)).wait()
     os.remove(myPath+"/finalVideoNoAudio.mp4")
     os.remove(myPath+"/video.mp4")
     for item in os.listdir(myPath+"/"+outPath):
