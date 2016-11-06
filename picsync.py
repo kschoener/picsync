@@ -14,10 +14,6 @@ then use greedy stay ahead algo to fill out the song
 '''
 
 '''
-this works for multiple pictures -- stops either when we're out of pictures or the song ends
-
-ffmpeg -framerate 2 -pattern_type glob -i 'pics/small/*.JPG' -i songs/Bashy.mp3 -c:v libx264 -c:a aac -strict experimental -b:a 192k -shortest -acodec copy -vcodec copy -f mov output_file.mov
-
 mp4 to mov:
 ffmpeg -i input_file.mp4 -acodec copy -vcodec copy -f mov output_file.mov
 ********
@@ -36,12 +32,72 @@ ffmpeg -i finalVideoNoAudio.mp4 -i song.mp3 -vcodec copy -acodec copy -shortest 
 '''
 FFMPEG_BIN = "/usr/local/bin/ffmpeg"
 
+
 #start with one audio file as input, and a folder of pictures
 # min framerate = 2 (image displayed for 1/2 of a second)
 def main():
+    initialize()
+
+    #if there are two channels, the even values are left channel and odd are the right in the array of samples
+    sound = AudioSegment.from_file(songpath, format="mp3")
+    (songTimeSeconds, samples, pointsPerMillisecond, sizeOfSamp) = soundValues(sound)
+
+    numberOfPictures = len(picpaths)
+
+    minDisplayTime = 1000 #milliseconds
+    # minDisplayTime = (songTimeSeconds*1000)/(numberOfPictures*1.5)
+    #prefer to show all pictures and not the whole song than the whole song and not all pics
+    maxDisplayTime = 6000 #4 seconds hard maximum
+
+    loudest = max(samples)
+    print("The loudest is: "+str(loudest))
+    #quietest will be (-1 * loudest)
+    print("the number of milliseconds is: "+str(pointsPerMillisecond*sizeOfSamp))
+
+    picInsertionsSeconds = changeLogic(loudest, minDisplayTime, maxDisplayTime,
+        numberOfPictures, songTimeSeconds, samples, pointsPerMillisecond
+    )
+
+    myPath = os.path.dirname(os.path.realpath(__file__))
+    outPath = "tempoutput/"
+
+    setUpPictureVideos(myPath, outPath, picInsertionsSeconds, maxDisplayTime)
+
+
+    # put all of the little picture videos together into one video
+    concatCommand = [FFMPEG_BIN, "-y", "-f", "concat", "-i", myPath+"/"+outPath+"input.txt",
+        "-i", "/"+os.path.relpath(songpath, "/"), "-vcodec", "copy", "-acodec", "copy", myPath+"/finalVideoNoAudio.mp4"]
+    print("\n\n\nCommand: "+str(concatCommand))
+    (subprocess.Popen(concatCommand, cwd=myPath)).wait()
+
+    # ffmpeg -i finalVideoNoAudio.mp4 -i song.mp3 -vcodec copy -acodec copy -shortest finalWithAudio.mp4
+    # mergeCommand = [FFMPEG_BIN, "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath, "-vcodec", "copy",
+    #     "-acodec", "copy", "-shortest", myPath+"/video.mp4"]
+    # add the music to the video
+    mergeCommand = [FFMPEG_BIN, "-y", "-i", myPath+"/finalVideoNoAudio.mp4", "-i", "/"+os.path.relpath(songpath, "/"),
+        "-vcodec", "copy", "-c:a", "aac", "-strict", "experimental",
+        "-map", "0:v:0", "-map", "1:a:0", "-shortest", os.path.join(os.getcwd(),"video.mp4")]
+    print("\n\n\nCommand: "+str(mergeCommand))
+    (subprocess.Popen(mergeCommand, cwd=myPath)).wait()
+
+    #ffmpeg -i input_file.mp4 -acodec copy -vcodec copy -f mov output_file.mov
+    # convert the mp4 to mov for viewing on mac
+    toMovCommand = [FFMPEG_BIN, "-y", "-i", os.path.join(os.getcwd(),"video.mp4"), "-acodec", "copy", "-vcodec", "copy", "-f", "mov", os.path.join(os.getcwd(),"video.mov")]
+    print("\n\n\nCommand: "+str(toMovCommand))
+    (subprocess.Popen(toMovCommand, cwd=myPath)).wait()
+
+    # remove all temp files, only keep video.mov
+    os.remove(myPath+"/finalVideoNoAudio.mp4")
+    os.remove(os.path.join(os.getcwd(),"video.mp4"))
+    for item in os.listdir(myPath+"/"+outPath):
+        os.remove(myPath+"/"+outPath+item)
+#enddef main
+
+
+
+def initialize():
     global songpath
     global picpaths
-    songpath = []
     picpaths = []
     #python3 picsync.py path/to/pics path/to/song.mp3
     for item in os.listdir(sys.argv[1]):
@@ -53,12 +109,13 @@ def main():
     random.shuffle(picpaths)
     print("after shuffle: "+str(picpaths))
 
-    #if there are two channels, the even values are left channel and odd are the right in the array of samples
     songpath = sys.argv[2]
-    sound = AudioSegment.from_file(songpath, format="mp3")
+#enddef initialize
 
-    channels = sound.channels
-    print("Number of channels: "+str(channels))
+
+
+def soundValues(sound):
+    print("Number of channels: "+str(sound.channels))
 
     print("Sample width (1 == 8 bits, 2 == 16bits, etc): "+str(sound.sample_width))
     print("Frame rate: "+str(sound.frame_rate))
@@ -75,26 +132,13 @@ def main():
     pointsPerMillisecond = float(len(samples)/(songTimeSeconds*1000))
     print("Data points per millisecond: "+str(pointsPerMillisecond))
 
-    sizeOfSamp = len(samples)
+    return (songTimeSeconds, samples, pointsPerMillisecond, len(samples))
+#enddef soundValues
 
-    numberOfPictures = len(picpaths)
-    # minDisplayTime = float(0.5) #30 seconds, 1/2 minute
-    minDisplayTime = 1000 #milliseconds
-    # minDisplayTime = (songTimeSeconds*1000)/(numberOfPictures*1.5)
-    #prefer to show all pictures and not the whole song than the whole song and not all pics
-    maxDisplayTime = 6000 #4 seconds hard maximum
-    # if(minDisplayTime > 1000):
-    #     minDisplayTime = 1000
-    # #endif
-    # if(minDisplayTime < 100):
-    #     minDisplayTime = 250
 
-    loudest = max(samples)
-    print("The loudest is: "+str(loudest))
-    #quietest will be (-1 * loudest)
 
-    print("the number of milliseconds is: "+str(pointsPerMillisecond*sizeOfSamp))
-
+def changeLogic(loudest, minDisplayTime, maxDisplayTime,
+    numberOfPictures, songTimeSeconds, samples, pointsPerMillisecond):
     picInsertions = [0]
     minVol = loudest
     while(len(picInsertions) < numberOfPictures and picInsertions[-1] <= songTimeSeconds*1000):# and minDisplayTime > 100):
@@ -119,10 +163,12 @@ def main():
 
     picInsertionsSeconds = [float(x/1000) for x in picInsertions]
     print("\n\nInsertion points in seconds: "+str(picInsertionsSeconds))
+    return picInsertionsSeconds
+#enddef changeLogic
 
-    myPath = os.path.dirname(os.path.realpath(__file__))
 
-    outPath = "tempoutput/"
+
+def setUpPictureVideos(myPath, outPath, picInsertionsSeconds, maxDisplayTime):
     try:
         os.mkdir(myPath+"/"+outPath)
     except:
@@ -137,15 +183,14 @@ def main():
         else:
             duration = picInsertionsSeconds[j+1]-picInsertionsSeconds[j]
         #endif
-        path = picpaths[ppIndex]
+        path = "/"+os.path.relpath(picpaths[ppIndex], "/")
 
         name = str(path.split('.')[0].split('/')[-1])
 
         tempOutPath = myPath + "/" + outPath + name + ".mp4"
-        # tempOutPath = outPath + name + ".mp4"
         #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
         #ffmpeg -loop_input -i test.jpg -t 10 test.mp4
-        command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", myPath+"/"+path,
+        command = [FFMPEG_BIN, "-y", "-loop", "1", "-i", path,
             "-t", str(duration), "-c:v", "libx264", "-codec", "copy", tempOutPath]
         try:
             print("\n\n\ncommand called: "+str(command))
@@ -159,67 +204,13 @@ def main():
         ppIndex += 1
     #endfor
 
-    path = picpaths[-1]
-    name = "filler"
-    tempOutPath = myPath + "/" + outPath + name + ".mp4"
-
-    #ffmpeg -framerate 1/3 -i DSC_0251.JPG -c:v libx264 -acodec copy -vcodec copy DSC_0251.mp4
-    command = [FFMPEG_BIN, "-y", "-framerate", "30", "-i", myPath+"/"+path,
-        "-c:v", "libx264", "-codec", "copy", tempOutPath]
-    try:
-        print("\n\n\ncommand called: "+str(command))
-        (subprocess.Popen(command, cwd=myPath)).wait()
-        writeString += ("file '"+name+".mp4"+"'\n")
-    except:
-        print("Couldn't complete command")
-
+    #save filenames to text file for concat later
     print("\n\n\n WriteString = "+writeString)
-    with open(outPath+"input.txt", "w") as handle:
+    with open(myPath+"/"+outPath+"input.txt", "w") as handle:
         handle.write(writeString)
     #end with
     handle.close()
-
-
-    #ffmpeg -f concat -i input.txt -codec copy finalVideoNoAudio.mp4
-    # concatCommand = [FFMPEG_BIN, "-f", "concat", "-i", myPath+"/"+outPath+"input.txt", "-codec", "copy", myPath+"/finalVideoNoAudio.mp4"]
-    # print("\n\n\nCommand: "+str(concatCommand))
-    # (subprocess.Popen(concatCommand, cwd=myPath)).wait()
-
-    concatCommand = [FFMPEG_BIN, "-y", "-f", "concat", "-i", myPath+"/"+outPath+"input.txt",
-        "-i", myPath+"/"+songpath, "-vcodec", "copy", "-acodec", "copy", myPath+"/finalVideoNoAudio.mp4"]
-    print("\n\n\nCommand: "+str(concatCommand))
-    (subprocess.Popen(concatCommand, cwd=myPath)).wait()
-
-    # ffmpeg -i finalVideoNoAudio.mp4 -i song.mp3 -vcodec copy -acodec copy -shortest finalWithAudio.mp4
-    # mergeCommand = [FFMPEG_BIN, "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath, "-vcodec", "copy",
-    #     "-acodec", "copy", "-shortest", myPath+"/video.mp4"]
-    mergeCommand = [FFMPEG_BIN, "-y", "-i", myPath+"/finalVideoNoAudio.mp4", "-i", myPath+"/"+songpath,
-        "-vcodec", "copy", "-c:a", "aac", "-strict", "experimental",
-        "-map", "0:v:0", "-map", "1:a:0", "-shortest", myPath+"/video.mp4"]
-    print("\n\n\nCommand: "+str(mergeCommand))
-    (subprocess.Popen(mergeCommand, cwd=myPath)).wait()
-
-    #ffmpeg -i input_file.mp4 -acodec copy -vcodec copy -f mov output_file.mov
-    toMovCommand = [FFMPEG_BIN, "-y", "-i", myPath+"/video.mp4", "-acodec", "copy", "-vcodec", "copy", "-f", "mov", myPath+"/video.mov"]
-    print("\n\n\nCommand: "+str(toMovCommand))
-    (subprocess.Popen(toMovCommand, cwd=myPath)).wait()
-
-    os.remove(myPath+"/finalVideoNoAudio.mp4")
-    os.remove(myPath+"/video.mp4")
-    for item in os.listdir(myPath+"/"+outPath):
-        os.remove(myPath+"/"+outPath+item)
-#enddef main
-
-
-
-
-
-
-
-
-
-
-
+#enddef setUpPictureVideos
 
 
 
